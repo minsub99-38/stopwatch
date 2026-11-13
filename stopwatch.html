@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>팬프라이 스탑워치</title>
+<style>
+  :root {
+    --bg: #fbf5ec;
+    --card: #fffaf3;
+    --card-edge: #efe3d2;
+    --text: #2b201a;
+    --muted: #9a8a7c;
+    --line: #eadccb;
+    --flame: #e8572a;
+    --charcoal: #3a302b;
+    --neutral: #e9ddcd;
+    --warn: #e07a1f;
+    --burnt: #c62d1f;
+    --best: #3f9b4f;
+    --worst: #c62d1f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15100d;
+      --card: #1f1814;
+      --card-edge: #2e241e;
+      --text: #f6ece2;
+      --muted: #9b8b7e;
+      --line: #2e241e;
+      --charcoal: #4a3f39;
+      --neutral: #3a2f29;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 48px;
+  }
+  .wrap { width: 100%; max-width: 440px; }
+  h1 {
+    font-size: 15px; font-weight: 600; letter-spacing: .5px;
+    color: var(--muted); text-align: center; margin: 0 0 16px;
+  }
+
+  /* ---------- 시간 프리셋 ---------- */
+  .presets {
+    display: flex; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .presets button {
+    flex: 1;
+    width: auto; height: 44px;
+    border-radius: 12px;
+    font-size: 15px;
+    background: var(--neutral);
+    color: var(--text);
+  }
+  .presets button.active { background: var(--flame); color: #fff; }
+
+  /* ---------- 조리 씬 ---------- */
+  .scene {
+    position: relative;
+    aspect-ratio: 400 / 320;
+    border-radius: 24px;
+    background: radial-gradient(120% 90% at 50% 100%, var(--card-edge), var(--card));
+    border: 1px solid var(--card-edge);
+    overflow: hidden;
+  }
+  .scene svg, .scene canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  }
+  .scene canvas { pointer-events: none; }
+
+  #panGroup.shake { animation: shake .12s linear infinite; }
+  @keyframes shake {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-1.5px, .8px); }
+    50%  { transform: translate(1.2px, -.6px); }
+    75%  { transform: translate(-.8px, -.8px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  #steak { transform-box: fill-box; transform-origin: center; }
+  #steak.flip { animation: flip .9s cubic-bezier(.3, .6, .4, 1); }
+  @keyframes flip {
+    0%   { transform: translateY(0) scaleY(1); }
+    25%  { transform: translateY(-60px) scaleY(.08); }
+    50%  { transform: translateY(-75px) scaleY(-1); }
+    75%  { transform: translateY(-35px) scaleY(.08); }
+    100% { transform: translateY(0) scaleY(1); }
+  }
+
+  .burner-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: flicker .18s ease-in-out infinite alternate; }
+  .burner-flame:nth-child(2n) { animation-duration: .23s; }
+  .burner-flame:nth-child(3n) { animation-duration: .15s; }
+  @keyframes flicker { from { transform: scaleY(.85); } to { transform: scaleY(1.12); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #panGroup.shake, #steak.flip, .burner-flame { animation: none; }
+  }
+
+  /* ---------- 익힘 단계 ---------- */
+  .status { text-align: center; margin: 20px 0 6px; }
+  .stage {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 15px; font-weight: 600;
+    background: var(--neutral);
+    transition: background .4s, color .4s;
+  }
+  .stage.warn { background: var(--warn); color: #fff; animation: pulse .6s ease-in-out infinite alternate; }
+  .stage.burnt { background: var(--burnt); color: #fff; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: .65; } }
+
+  .meter { position: relative; margin: 14px 4px 0; }
+  .meter-bar {
+    height: 8px; border-radius: 4px;
+    background: linear-gradient(90deg, #d9434b 0%, #c8574f 20%, #a8623d 45%, #8a4a26 65%, #5e3218 80%, #2e1a10 92%, #161010 100%);
+  }
+  .needle {
+    position: absolute; top: -4px; width: 4px; height: 16px;
+    margin-left: -2px; border-radius: 2px;
+    background: var(--text);
+    box-shadow: 0 0 0 2px var(--bg);
+    left: 0;
+  }
+  .meter-labels {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--muted); margin-top: 6px;
+  }
+
+  /* ---------- 시간 ---------- */
+  .display {
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(56px, 18vw, 80px);
+    font-weight: 200;
+    text-align: center;
+    letter-spacing: -1px;
+    margin: 18px 0 28px;
+    transition: color .4s;
+  }
+  .display .ms { color: var(--muted); }
+  .display.warn { color: var(--warn); }
+  .display.burnt { color: var(--burnt); }
+
+  .controls { display: flex; justify-content: space-between; margin-bottom: 28px; }
+  button {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    border: none;
+    font-size: 17px; font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform .08s, opacity .2s, background .2s;
+  }
+  button:active { transform: scale(.94); }
+  button:disabled { opacity: .4; cursor: default; }
+  #lapReset { background: var(--neutral); color: var(--text); }
+  #startStop { background: var(--flame); color: #fff; }
+  #startStop.running { background: var(--charcoal); }
+
+  ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+  li {
+    display: flex; justify-content: space-between;
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+  }
+  li.best { color: var(--best); }
+  li.worst { color: var(--worst); }
+  .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">팬프라이 스탑워치 · 30초</h1>
+
+  <div class="presets" id="presets">
+    <button data-sec="30" class="active">30초</button>
+    <button data-sec="60">1분</button>
+    <button data-sec="90">1분 30초</button>
+  </div>
+
+  <div class="scene" id="scene">
+    <svg viewBox="0 -40 400 320" aria-hidden="true">
+      <defs>
+        <radialGradient id="panSurface" cx="45%" cy="40%" r="70%">
+          <stop offset="0%" stop-color="#45454b"/>
+          <stop offset="100%" stop-color="#232327"/>
+        </radialGradient>
+        <radialGradient id="burnerGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff8a3d" stop-opacity=".9"/>
+          <stop offset="100%" stop-color="#ff8a3d" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="meatGrad" cx="48%" cy="42%" r="62%">
+          <stop id="meatC" offset="0%" stop-color="#d9434b"/>
+          <stop id="meatE" offset="100%" stop-color="#b8343c"/>
+        </radialGradient>
+        <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="#2f6cff"/>
+          <stop offset="70%" stop-color="#6fb4ff"/>
+          <stop offset="100%" stop-color="#bfe0ff" stop-opacity=".2"/>
+        </linearGradient>
+        <clipPath id="steakClip">
+          <path d="M-70,-5 C-75,-30 -30,-42 10,-38 C50,-36 78,-22 74,0 C72,22 40,34 0,32 C-40,32 -66,20 -70,-5 Z"/>
+        </clipPath>
+      </defs>
+
+      <!-- 버너 불빛 & 불꽃 -->
+      <ellipse id="glow" cx="175" cy="255" rx="170" ry="40" fill="url(#burnerGlow)" opacity="0"/>
+      <ellipse cx="175" cy="264" rx="108" ry="11" fill="#2c2b2b"/>
+      <g id="burnerFlames" opacity="0" fill="url(#flameGrad)">
+        <path class="burner-flame" d="M85,262 C79,256 81,248 85,240 C89,248 91,256 85,262Z"/>
+        <path class="burner-flame" d="M108,265 C102,258 104,249 108,240 C112,249 114,258 108,265Z"/>
+        <path class="burner-flame" d="M133,267 C127,259 129,250 133,241 C137,250 139,259 133,267Z"/>
+        <path class="burner-flame" d="M160,268 C154,260 156,251 160,242 C164,251 166,260 160,268Z"/>
+        <path class="burner-flame" d="M190,268 C184,260 186,251 190,242 C194,251 196,260 190,268Z"/>
+        <path class="burner-flame" d="M217,267 C211,259 213,250 217,241 C221,250 223,259 217,267Z"/>
+        <path class="burner-flame" d="M242,265 C236,258 238,249 242,240 C246,249 248,258 242,265Z"/>
+        <path class="burner-flame" d="M265,262 C259,256 261,248 265,240 C269,248 271,256 265,262Z"/>
+      </g>
+
+      <g id="panGroup">
+        <!-- 손잡이 -->
+        <path d="M318,172 L362,157" stroke="#18181a" stroke-width="15" stroke-linecap="round"/>
+        <path d="M356,159 L394,146" stroke="#7a4a2a" stroke-width="19" stroke-linecap="round"/>
+        <path d="M362,154 L390,145" stroke="#9a6640" stroke-width="5" stroke-linecap="round" opacity=".6"/>
+
+        <!-- 팬 몸체 -->
+        <ellipse cx="175" cy="190" rx="150" ry="62" fill="#121214"/>
+        <ellipse cx="175" cy="176" rx="150" ry="62" fill="#1d1d20"/>
+        <ellipse cx="175" cy="177" rx="134" ry="51" fill="url(#panSurface)"/>
+        <ellipse cx="175" cy="176" rx="148" ry="60" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
+        <!-- 기름 -->
+        <ellipse id="oil" cx="178" cy="180" rx="112" ry="38" fill="#e8b84a" opacity=".12"/>
+
+        <!-- 마늘 -->
+        <g id="garlic">
+          <ellipse cx="72" cy="178" rx="11" ry="8" transform="rotate(-20 72 178)"/>
+          <ellipse cx="90" cy="200" rx="10" ry="7.5" transform="rotate(15 90 200)"/>
+        </g>
+        <!-- 로즈메리 -->
+        <g id="rosemary" stroke-linecap="round">
+          <path d="M238,214 L298,174" stroke-width="2.5"/>
+          <g stroke-width="3.2">
+            <path d="M248,207 l-3,-9"/><path d="M248,207 l9,3"/>
+            <path d="M260,199 l-3,-9"/><path d="M260,199 l9,3"/>
+            <path d="M272,191 l-3,-9"/><path d="M272,191 l9,3"/>
+            <path d="M284,183 l-3,-9"/><path d="M284,183 l9,3"/>
+            <path d="M294,177 l-1,-8"/><path d="M294,177 l8,2"/>
+          </g>
+        </g>
+
+        <!-- 스테이크 -->
+        <g transform="translate(176,166)">
+          <g id="steak">
+            <ellipse cx="2" cy="14" rx="80" ry="28" fill="#000" opacity=".35"/>
+            <path id="meatSide" transform="translate(0,9)" d="M-70,-5 C-75,-30 -30,-42 10,-38 C50,-36 78,-22 74,0 C72,22 40,34 0,32 C-40,32 -66,20 -70,-5 Z" fill="#8f2a30"/>
+            <path d="M-70,-5 C-75,-30 -30,-42 10,-38 C50,-36 78,-22 74,0 C72,22 40,34 0,32 C-40,32 -66,20 -70,-5 Z" fill="url(#meatGrad)"/>
+            <g clip-path="url(#steakClip)">
+              <!-- 마블링 -->
+              <g id="marbling" fill="none" stroke="#fff3ea" stroke-width="1.6" stroke-linecap="round" opacity=".35">
+                <path d="M-45,-10 C-30,-18 -20,-4 -5,-12 C8,-19 18,-8 30,-14"/>
+                <path d="M-30,12 C-18,6 -8,18 8,10 C20,4 34,14 48,6"/>
+                <path d="M-5,-28 C2,-20 -6,-12 4,-4"/>
+              </g>
+              <!-- 시어링 자국 -->
+              <g id="sear" stroke="#2a140a" stroke-width="6" stroke-linecap="round" opacity="0">
+                <path d="M-55,-30 L-25,35"/>
+                <path d="M-25,-38 L5,35"/>
+                <path d="M5,-40 L35,32"/>
+                <path d="M35,-38 L62,22"/>
+              </g>
+              <ellipse cx="-12" cy="-20" rx="34" ry="8" fill="#fff" opacity=".13"/>
+            </g>
+            <!-- 지방층 -->
+            <path id="fat" d="M-64,-18 C-52,-35 -18,-42 14,-39" fill="none" stroke="#f3e2cf" stroke-width="8" stroke-linecap="round"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+    <canvas id="fx"></canvas>
+  </div>
+
+  <div class="status">
+    <span class="stage" id="stage">시작을 누르면 굽기 시작</span>
+  </div>
+  <div class="meter">
+    <div class="meter-bar"></div>
+    <div class="needle" id="needle"></div>
+    <div class="meter-labels"><span>생고기</span><span>레어</span><span>미디엄</span><span>웰던</span><span>탐</span></div>
+  </div>
+
+  <div class="display" id="display">00:00<span class="ms">.00</span></div>
+  <div class="controls">
+    <button id="lapReset" disabled>랩</button>
+    <button id="startStop">시작</button>
+  </div>
+  <ul id="laps"></ul>
+  <p class="hint">Space: 시작/정지 · L: 랩 · R: 재설정</p>
+</div>
+
+<script>
+  /* ================= 스탑워치 ================= */
+  const display = document.getElementById('display');
+  const startStopBtn = document.getElementById('startStop');
+  const lapResetBtn = document.getElementById('lapReset');
+  const lapsEl = document.getElementById('laps');
+
+  let cookSeconds = 30;   // 이 시간이 되면 완전히 탐 (프리셋으로 변경)
+
+  let running = false;
+  let startTime = 0;
+  let elapsed = 0;
+  let laps = [];
+  let lapStart = 0;
+
+  const now = () => elapsed + (running ? performance.now() - startTime : 0);
+
+  function format(ms) {
+    const cs = Math.floor(ms / 10) % 100;
+    const s = Math.floor(ms / 1000) % 60;
+    const m = Math.floor(ms / 60000) % 60;
+    const h = Math.floor(ms / 3600000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return { main: (h ? h + ':' : '') + pad(m) + ':' + pad(s), cs: '.' + pad(cs) };
+  }
+
+  function renderTime(ms) {
+    const t = format(ms);
+    display.innerHTML = `${t.main}<span class="ms">${t.cs}</span>`;
+    const current = lapsEl.querySelector('li.current span:last-child');
+    if (current) {
+      const c = format(ms - lapStart);
+      current.textContent = c.main + c.cs;
+    }
+  }
+
+  function renderLaps() {
+    lapsEl.innerHTML = '';
+    if (running || laps.length || elapsed) {
+      const li = document.createElement('li');
+      li.className = 'current';
+      const c = format(now() - lapStart);
+      li.innerHTML = `<span>랩 ${laps.length + 1}</span><span>${c.main + c.cs}</span>`;
+      lapsEl.appendChild(li);
+    }
+    const min = Math.min(...laps), max = Math.max(...laps);
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const li = document.createElement('li');
+      if (laps.length > 1 && laps[i] === min) li.className = 'best';
+      if (laps.length > 1 && laps[i] === max) li.className = 'worst';
+      const f = format(laps[i]);
+      li.innerHTML = `<span>랩 ${i + 1}</span><span>${f.main + f.cs}</span>`;
+      lapsEl.appendChild(li);
+    }
+  }
+
+  function updateButtons() {
+    startStopBtn.textContent = running ? '정지' : (elapsed ? '재개' : '시작');
+    startStopBtn.classList.toggle('running', running);
+    lapResetBtn.textContent = running || !elapsed ? '랩' : '재설정';
+    lapResetBtn.disabled = !running && !elapsed;
+  }
+
+  function updatePresets() {
+    presetBtns.forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.sec) === cookSeconds);
+      b.disabled = running;   // 굽는 중에는 시간 변경 불가
+    });
+  }
+
+  function startStop() {
+    if (running) {
+      elapsed += performance.now() - startTime;
+      running = false;
+    } else {
+      startTime = performance.now();
+      running = true;
+      if (!lapsEl.children.length) renderLaps();
+    }
+    updateButtons();
+    updatePresets();
+  }
+
+  function lap() {
+    if (!running) return;
+    const t = now();
+    laps.push(t - lapStart);
+    lapStart = t;
+    renderLaps();
+  }
+
+  function reset() {
+    if (running) return;
+    elapsed = 0; laps = []; lapStart = 0;
+    lapsEl.innerHTML = '';
+    resetCooking();
+    updateButtons();
+  }
+
+  const presetBtns = document.querySelectorAll('#presets button');
+  const titleEl = document.getElementById('title');
+  presetBtns.forEach((b) => b.addEventListener('click', () => {
+    if (running) return;
+    cookSeconds = Number(b.dataset.sec);
+    titleEl.textContent = '팬프라이 스탑워치 · ' + b.textContent;
+    syncFlip();
+    updatePresets();
+  }));
+
+  startStopBtn.addEventListener('click', startStop);
+  lapResetBtn.addEventListener('click', () => running ? lap() : reset());
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); startStop(); }
+    else if (e.key === 'l' || e.key === 'L') lap();
+    else if (e.key === 'r' || e.key === 'R') reset();
+  });
+
+  /* ================= 조리 씬 ================= */
+  const $ = (id) => document.getElementById(id);
+  const meatC = $('meatC'), meatE = $('meatE'), meatSide = $('meatSide');
+  const fat = $('fat'), marbling = $('marbling'), sear = $('sear');
+  const steak = $('steak'), panGroup = $('panGroup');
+  const garlic = $('garlic'), rosemary = $('rosemary'), oil = $('oil');
+  const burnerFlames = $('burnerFlames'), glow = $('glow');
+  const stageEl = $('stage'), needle = $('needle');
+
+  // 익힘 정도(0~1)에 따른 색 변화
+  const MEAT_CENTER = [[0, '#d9434b'], [.2, '#c8574f'], [.45, '#a8623d'], [.65, '#8a4a26'], [.8, '#5e3218'], [.92, '#2e1a10'], [1, '#161010']];
+  const MEAT_EDGE   = [[0, '#b8343c'], [.2, '#9c3f36'], [.45, '#7a4224'], [.65, '#5c2f17'], [.8, '#3b1e0e'], [.92, '#1c100a'], [1, '#0b0808']];
+  const MEAT_SIDE   = [[0, '#8f2a30'], [.3, '#7a3a2c'], [.6, '#5a2f1a'], [.85, '#2a1a10'], [1, '#0a0707']];
+  const FAT         = [[0, '#f3e2cf'], [.35, '#eccb8f'], [.6, '#c98a3e'], [.85, '#5a3418'], [1, '#1a1210']];
+  const GARLIC      = [[0, '#f4ecd8'], [.4, '#ecc977'], [.7, '#a8692c'], [.9, '#3a2412'], [1, '#141010']];
+  const HERB        = [[0, '#4f8a3c'], [.5, '#3f6b2c'], [.8, '#2a3a1a'], [1, '#141410']];
+
+  // 단계 기준은 전체 조리 시간 대비 비율 (30초 기준: 0·3·9·15·20·25·30초)
+  const STAGES = [
+    [0,     '생고기'],
+    [1 / 10, '레어'],
+    [3 / 10, '미디엄 레어'],
+    [1 / 2,  '미디엄'],
+    [2 / 3,  '웰던'],
+    [5 / 6,  '타고 있어요!'],
+    [1,      '숯이 됐어요…'],
+  ];
+  const FLIP_AT = 1 / 2;    // 뒤집는 시점
+  const BURN_AT = 2 / 3;    // 연기가 검어지기 시작
+  const FIRE_AT = 0.9;      // 불길이 오르기 시작
+
+  const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  function mix(stops, p) {
+    if (p <= stops[0][0]) return stops[0][1];
+    for (let i = 1; i < stops.length; i++) {
+      const [p1, c1] = stops[i];
+      if (p <= p1) {
+        const [p0, c0] = stops[i - 1];
+        const k = (p - p0) / (p1 - p0);
+        const a = hexToRgb(c0), b = hexToRgb(c1);
+        return `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * k)).join(',')})`;
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+  const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+
+  let heat = 0;          // 불 세기 (켜짐 1 / 꺼짐 0, 부드럽게 전환)
+  let flipped = false;   // 15초에 한 번 뒤집기
+  let flipping = false;
+
+  function flip() {
+    flipped = flipping = true;
+    steak.classList.remove('flip');
+    void steak.getBBox();
+    steak.classList.add('flip');
+    setTimeout(() => { sear.setAttribute('opacity', '.55'); }, 220);
+    setTimeout(() => { flipping = false; steak.classList.remove('flip'); }, 900);
+  }
+
+  // 멈춘 상태에서 시간을 바꿨을 때 뒤집힘 상태를 새 기준에 맞춤
+  function syncFlip() {
+    flipped = now() / 1000 >= cookSeconds * FLIP_AT;
+    sear.setAttribute('opacity', flipped ? '.55' : '0');
+  }
+
+  function resetCooking() {
+    flipped = flipping = false;
+    steak.classList.remove('flip');
+    sear.setAttribute('opacity', '0');
+    parts.length = 0;
+  }
+
+  /* ---------- 파티클 (김, 연기, 기름 튐, 불길) ---------- */
+  const canvas = $('fx');
+  const ctx = canvas.getContext('2d');
+  const parts = [];
+  let scale = 1;
+  const acc = { s: 0, o: 0, f: 0 };
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    scale = (w / 400) * dpr;
+    ctx.setTransform(scale, 0, 0, scale, 0, 40 * scale);  // SVG viewBox(0,-40) 와 좌표 일치
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  function spawn(kind, burn) {
+    if (parts.length > 500) return;
+    const x = 176 + rand(-62, 62), y = 166 + rand(-26, 22);
+    if (kind === 's') {
+      parts.push({ k: 's', x, y: y - 6, vx: rand(-7, 7), vy: -rand(25, 55), r: rand(4, 9), life: 0, max: rand(1.6, 3), shade: burn, ph: rand(0, 6) });
+    } else if (kind === 'o') {
+      const ex = 176 + rand(-95, 95), ey = 176 + rand(-30, 30);
+      parts.push({ k: 'o', x: ex, y: ey, vx: rand(-60, 60), vy: -rand(80, 160), r: rand(1.2, 2.4), life: 0, max: rand(.35, .7) });
+    } else {
+      parts.push({ k: 'f', x, y, vx: rand(-10, 10), vy: -rand(50, 110), r: rand(6, 13), life: 0, max: rand(.45, .9) });
+    }
+  }
+
+  function stepParticles(dt) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life += dt;
+      if (p.life >= p.max) { parts.splice(i, 1); continue; }
+      const r = p.life / p.max;
+
+      if (p.k === 's') {
+        p.x += (p.vx + Math.sin(p.life * 2.5 + p.ph) * 10) * dt;
+        p.y += p.vy * dt;
+        const c = Math.round(250 - 215 * p.shade);
+        const fadeIn = Math.min(1, p.life / .25);
+        const a = (1 - r) * fadeIn * (.16 + .4 * p.shade);
+        ctx.fillStyle = `rgba(${c},${c},${c},${a})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r + p.life * (12 + 10 * p.shade), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of parts) {
+      const r = p.life / p.max;
+      if (p.k === 'f') {
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        const g = Math.round(220 - 170 * r);
+        ctx.fillStyle = `rgba(255,${g},40,${.55 * (1 - r)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * (1 - r * .7), 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.k === 'o') {
+        p.vy += 420 * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        ctx.fillStyle = `rgba(255,225,140,${1 - r})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------- 메인 루프 ---------- */
+  let last = performance.now();
+  function frame(ts) {
+    const dt = Math.min(.05, (ts - last) / 1000);
+    last = ts;
+
+    const ms = now();
+    const t = ms / 1000;
+    const p = clamp(t / cookSeconds);                       // 익힘 정도
+    const burn = clamp((p - BURN_AT) / (1 - BURN_AT));      // 타는 정도
+    const fire = clamp((p - FIRE_AT) / (1 - FIRE_AT));      // 불길 세기
+
+    heat += ((running ? 1 : 0) - heat) * Math.min(1, dt * 4);
+
+    // 색 갱신
+    meatC.setAttribute('stop-color', mix(MEAT_CENTER, p));
+    meatE.setAttribute('stop-color', mix(MEAT_EDGE, p));
+    meatSide.setAttribute('fill', mix(MEAT_SIDE, p));
+    fat.setAttribute('stroke', mix(FAT, p));
+    marbling.setAttribute('opacity', (.35 * (1 - p)).toFixed(3));
+    garlic.setAttribute('fill', mix(GARLIC, p));
+    rosemary.setAttribute('stroke', mix(HERB, p));
+    oil.setAttribute('opacity', (.12 + .1 * heat * (1 - burn)).toFixed(3));
+    burnerFlames.setAttribute('opacity', heat.toFixed(3));
+    glow.setAttribute('opacity', (heat * (.25 + .5 * burn)).toFixed(3));
+
+    if (!flipped && p >= FLIP_AT) flip();
+    panGroup.classList.toggle('shake', running && burn > .6);
+
+    // 파티클 생성
+    acc.s += heat * (3 + 12 * p + 26 * burn) * dt;
+    acc.o += heat * (4 + 18 * p) * (1 - .7 * burn) * dt;
+    acc.f += heat * fire * 45 * dt;
+    while (acc.s >= 1) { spawn('s', burn); acc.s--; }
+    while (acc.o >= 1) { spawn('o'); acc.o--; }
+    while (acc.f >= 1) { spawn('f'); acc.f--; }
+    stepParticles(dt);
+
+    // 라벨, 게이지, 시간
+    let label = STAGES[0][1];
+    for (const [s, name] of STAGES) if (p >= s) label = name;
+    if (ms === 0) label = '시작을 누르면 굽기 시작';
+    if (flipping) label = '뒤집기!';
+    if (stageEl.textContent !== label) stageEl.textContent = label;
+    const level = p >= 1 ? 'burnt' : p >= 5 / 6 ? 'warn' : '';
+    stageEl.className = 'stage' + (level ? ' ' + level : '');
+    display.className = 'display' + (level ? ' ' + level : '');
+    needle.style.left = (p * 100) + '%';
+    renderTime(ms);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
